@@ -57,7 +57,7 @@ Classe responsável pelo acesso aos dados do banco. Implementa métodos para:
 - Listagem (`listarTodos`)
 - Atualização (`atualizar`)
 - Exclusão (`deletar`)
-  Utiliza JDBC puro para interação com o SQLite.
+Utiliza JDBC puro para interação com o SQLite.
 
 ### 8. Database.java
 Classe utilitária para conexão com o banco de dados SQLite. Expõe o método `connect()` que retorna uma instância `Connection`.
@@ -114,38 +114,39 @@ O sistema foi projetado para ser funcional, modular e extensível. Ele serve com
 ### Etapas de Configuração
 
 1. **Importação do Projeto**
-    - Extraia o arquivo `.zip` do projeto para uma pasta local.
-    - No IntelliJ, selecione `File > Open` e escolha a pasta do projeto.
+   - Extraia o arquivo `.zip` do projeto para uma pasta local.
+   - No IntelliJ, selecione `File > Open` e escolha a pasta do projeto.
 
 2. **Configuração do SDK**
-    - Acesse `File > Project Structure > Project`.
-    - Em `Project SDK`, selecione o JDK 17 ou superior. Se não estiver configurado, adicione manualmente.
+   - Acesse `File > Project Structure > Project`.
+   - Em `Project SDK`, selecione o JDK 17 ou superior. Se não estiver configurado, adicione manualmente.
 
 3. **Adição das Bibliotecas do JavaFX**
-    - Vá em `File > Project Structure > Libraries`.
-    - Clique no botão `+`, selecione `Java`, e adicione o diretório `lib` da pasta do JavaFX SDK baixado.
+   - Vá em `File > Project Structure > Libraries`.
+   - Clique no botão `+`, selecione `Java`, e adicione o diretório `lib` da pasta do JavaFX SDK baixado.
 
 4. **Criação da Configuração de Execução**
-    - Vá em `Run > Edit Configurations`.
-    - Crie uma nova configuração do tipo `Application`.
-        - Classe principal: `app.MainApp`
-        - Use classpath do módulo: selecione o módulo atual do projeto.
-    - Em `VM Options`, adicione:
+   - Vá em `Run > Edit Configurations`.
+   - Crie uma nova configuração do tipo `Application`.
+     - Classe principal: `app.MainApp`
+     - Use classpath do módulo: selecione o módulo atual do projeto.
+   - Em `VM Options`, adicione:
 
-      ```
-      --module-path "C:\caminho\para\javafx-sdk-XX\lib" --add-modules javafx.controls,javafx.fxml
-      ```
+     ```
+     --module-path "C:\caminho\para\javafx-sdk-XX\lib" --add-modules javafx.controls,javafx.fxml
+     ```
 
-      Substitua o caminho conforme a localização real do seu JavaFX SDK.
+     Substitua o caminho conforme a localização real do seu JavaFX SDK.
 
 5. **Verificação de Recursos**
-    - Certifique-se de que os arquivos `.fxml` e `.db` estejam acessíveis no classpath.
-    - A estrutura `src/view` e `contatos.db` deve estar na raiz do projeto.
+   - Certifique-se de que os arquivos `.fxml` e `.db` estejam acessíveis no classpath.
+   - A estrutura `src/view` e `contatos.db` deve estar na raiz do projeto.
 
 6. **Execução**
-    - Execute o projeto clicando em `Run > Run 'MainApp'`.
+   - Execute o projeto clicando em `Run > Run 'MainApp'`.
 
 ### Observações Importantes
 
 - Caso veja erros como `Invalid URL` ou `LoadException`, verifique se os caminhos dos arquivos `.fxml` estão corretos e se estão incluídos nos `resources`.
 - Certifique-se de não mover o `contatos.db` da raiz do projeto, pois o caminho é relativo.
+- As lib's necessárias estão dentro da pasta `requirements`
