@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane fx:controller="controller.MainController" xmlns:fx="http://javafx.com/fxml">
+    <top>
+        <Label text="Gerenciador de Contatos" style="-fx-font-size: 18; -fx-padding: 10;"/>
+    </top>
+    <center>
+        <VBox spacing="10" style="-fx-padding: 10;">
+            <HBox spacing="10">
+                <TextField fx:id="nomeField" promptText="Nome"/>
+                <TextField fx:id="sobrenomeField" promptText="Sobrenome"/>
+                <TextField fx:id="emailField" promptText="Email"/>
+                <TextField fx:id="telefoneField" promptText="Telefone"/>
+            </HBox>
+            <HBox spacing="10">
+                <Button text="Adicionar" onAction="#adicionarContato"/>
+                <Button text="Editar" onAction="#editarContato"/>
+                <Button text="Excluir" onAction="#excluirContato"/>
+                <Button text="Atualizar" onAction="#listarContatos"/>
+            </HBox>
+            <TableView fx:id="tabelaContatos">
+                <columns>
+                    <TableColumn fx:id="colNome" text="Nome" />
+                    <TableColumn fx:id="colSobrenome" text="Sobrenome" />
+                    <TableColumn fx:id="colEmail" text="Email" />
+                    <TableColumn fx:id="colTelefone" text="Telefone" />
+                </columns>
+            </TableView>
+        </VBox>
+    </center>
+</BorderPane>
