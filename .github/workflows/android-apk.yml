@@ -34,10 +34,17 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
       - name: Compilar APK nativo
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if gradle :app:assembleDebug --no-daemon --stacktrace; then exit 0; fi
+            if [ "$attempt" = "3" ]; then exit 1; fi
+            echo "Falha na compilação ou nos downloads. Tentativa $((attempt+1))/3 após pausa."
+            sleep 35
+          done
       - name: Publicar APK instalável
         uses: actions/upload-artifact@v4
         with:
-          name: TRILHA-Android-APK
+          name: 1o-Android-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

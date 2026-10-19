@@ -1,21 +1,21 @@
-# TRILHA — Aplicativo Android nativo
+# 1o — atividades e blocos de foco
 
-Aplicativo Android feito em **Java com componentes de interface nativos**, sem WebView, sem conexão com servidores e sem rastreadores. Compatível com Android 7.0 (API 24) ou posterior.
+Aplicativo Android **nativo em Java**, offline para execução das tarefas, com tela escura preta e detalhes vermelhos. Sem WebView, sem conta e sem servidor obrigatório. A identidade de pacote `br.com.trilha.foco` foi mantida por compatibilidade com os dados anteriores.
 
-## Recursos
-- Cadastrar, renomear e excluir atividades.
-- Cadastrar, renomear e excluir tipos próprios de cada atividade.
-- Cronômetro de concentração com pausar, retomar, concluir, descartar e retomada após fechar o app.
-- Histórico de sessões, totais do dia e tempo acumulado.
-- Armazenamento local (`SharedPreferences` + JSON), sem necessidade de conta ou internet.
+## Fluxo da sessão
+1. Selecione a atividade e um tipo; defina a duração de foco planejada entre 1 e 720 minutos.
+2. **Preparação:** contagem sem limite, incluindo pausas. Toque em "Iniciar bloco de foco" para trocar de fase.
+3. **Foco:** o cronômetro progride normalmente mesmo após atingir a meta; o excedente aparece como **tempo extra**, sem interrupção.
+4. Conclua para registrar preparação, foco real, meta e tempo extra.
+5. Opcionalmente registre uma preparação encerrada antes do foco, mantendo a tentativa na análise.
 
-## Gerar APK no Android Studio
-1. Abra a pasta `TRILHA_Android_Nativo` como um projeto no Android Studio.
-2. Aguarde a sincronização do Gradle (JDK 17, Android SDK 35).
-3. Use **Build > Build Bundle(s) / APK(s) > Build APK(s)**.
-4. O arquivo gerado fica em `app/build/outputs/apk/debug/app-debug.apk`.
+## Dados e histórico
+Os dados permanecem em `SharedPreferences` + JSON local. O histórico inclui tempos, IDs de atividade e tipo, momento de abertura/início do foco/encerramento e status. Sessões antigas continuam legíveis sem criar metas ou preparação inexistentes. O resumo apresenta tempo total de foco, preparação, extra, média de preparação, proporção de metas alcançadas e preparações encerradas antes do foco.
 
-Instale o APK copiando-o para o dispositivo e abrindo o arquivo. Talvez seja necessário autorizar a instalação desta fonte no Android. APK de depuração é assinado automaticamente pelo Android Gradle Plugin com uma chave local, apropriado para uso pessoal e testes. Para publicar, crie uma assinatura de lançamento própria.
+Uma preparação longa não prova procrastinação; a relação com resultados, contexto, tipo de tarefa e número de observações precisa ser analisada antes de extrair conclusões.
 
-## Privacidade e limitações
-Os dados permanecem armazenados no dispositivo e poderão ser perdidos se o usuário limpar os dados do app ou o desinstalar. Não há sincronização, backup em nuvem nem notificações. O cronômetro conta o tempo de parede decorrido e mantém a sessão mesmo com o app em segundo plano. O histórico é preservado ao excluir uma atividade ou tipo.
+## Compilação
+O GitHub Actions da `main` executa o workflow `.github/workflows/android-apk.yml` e publica o APK de depuração nos **Artifacts**. Em caso de HTTP 429 temporário dos repositórios Maven, tenta a compilação novamente.
+
+## Atualizações e preservação
+A atualização direta do aplicativo por GitHub Releases **ainda não foi implementada**. APKs de depuração de execuções diferentes podem ter assinaturas diferentes e não se instalar sobre o app atual. Antes de ativar atualização in-app é necessário configurar assinatura de produção estável. Por enquanto, evitar desinstalar a versão instalada sem ter cópia de segurança dos dados; o aplicativo ainda não possui exportação/backup.

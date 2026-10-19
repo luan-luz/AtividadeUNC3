@@ -2,10 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="true"
-        android:label="TRILHA"
+        android:label="1o"
         android:icon="@android:drawable/ic_menu_agenda"
         android:usesCleartextTraffic="false"
-        android:theme="@style/TrilhaTheme">
+        android:theme="@style/OneOTheme">
         <activity android:name=".MainActivity" android:screenOrientation="unspecified"
             android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
