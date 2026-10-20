@@ -1,0 +1,12 @@
+# Credenciais privadas - nunca commitar
+*.p12
+*.jks
+*.keystore
+*KEYSTORE_B64*
+*STORE_PASSWORD*
+# Android/Gradle
+.gradle/
+**/build/
+local.properties
+.idea/
+.DS_Store
