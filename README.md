@@ -1,28 +1,33 @@
-# 1o · v1.2.0 — Atividades, desafios e aprendizagem
+# 1o — Android nativo offline e atualizações pelo GitHub
 
-App Android nativo em Java, interface preta/branca/vermelha e uso **100% offline**. Sem WebView, conta, servidor, telemetria ou permissão de internet.
+Versão **1.3.0**. App em Java/Android, identidade preta/branca/vermelha, atividades, tipos, desafios, preparação, foco, tempo extra, histórico, recuperação ativa, revisões espaçadas e backup JSON.
 
-## Funcionalidades
-- Atividades e tipos personalizados.
-- Único cronômetro com preparação ilimitada, foco planejado, pausa, retomada e excedente.
-- Histórico local de sessões, mantido intacto.
-- Desafios de 7, 14, 30, 60 e 90 dias, vinculados a atividade e tipo.
-- Metas diárias de 1 a 720 minutos, com mudanças para dias específicos; 0 indica descanso.
-- Percentual de dias cumpridos, sequência atual e melhor sequência, tempo total de foco, preparação e excedente.
-- Desafios de aprendizagem: compreensão escrita, ideias principais, explicação livre e dúvidas.
-- Questões de recuperação ativa com resposta sem consulta e avaliação manual de 0 a 2.
-- Reagendamento de revisão por intervalos crescentes (1, 3, 7, 14 e 30 dias); falhas voltam ao intervalo curto.
-- Cópias locais em JSON via seletor nativo de arquivos: exportação e restauração.
+## Atualização integrada
+A tela inicial inclui **Verificar atualizações**. Na abertura, o aplicativo também faz uma consulta assíncrona opcional à última versão pública do GitHub Releases (máximo uma verificação bem-sucedida por 24h); se estiver sem internet, ignora o erro sem interromper as funções locais.
 
-## Regras dos indicadores
-A soma de foco dos blocos vinculados ao desafio e encerrados em um mesmo dia civil é comparada à meta daquele dia. Tempo extra já pertence ao foco e não é somado duas vezes. Dias de descanso são excluídos do denominador. Sessões avulsas não entram automaticamente em desafios. Uma sessão pertence a no máximo um desafio.
+Quando houver uma versão nova, oferece download e instalação pelo instalador do Android. A instalação precisa de aprovação explícita do usuário e, conforme o aparelho, permissão para instalar apps desta fonte. **Não há instalações silenciosas.**
 
-Autoavaliação de recordação não é uma prova objetiva de retenção; os indicadores refletem o desempenho que o usuário registrou. Tempos de preparação longos não significam necessariamente procrastinação.
+A validação exige HTTPS, arquivo de Release com nome exato `1o.apk`, SHA-256 informado pelo GitHub, limite de tamanho, mesmo pacote Android e `versionCode` maior. A assinatura digital será checada pelo próprio instalador Android, que rejeita assinaturas incompatíveis.
 
-## Segurança dos dados
-O banco local atual permanece no `SharedPreferences` com JSON e migração aditiva. Alterações são versionadas por `dataVersion`, mantendo sessões anteriores. Ao migrar para SQLite/Room, exigir backup e testes de preservação. A restauração substitui todos os registros do dispositivo e exige confirmação.
+## Assinatura permanente — configuração inicial (obrigatória)
+A assinatura precisa ser a mesma em todas as versões. **Nunca publique o keystore nem a senha no GitHub, em commit ou arquivo do repositório.**
 
-**Atualizações automáticas via GitHub Releases ainda não estão implementadas.** O APK atual é de depuração; cada runner pode usar certificado diferente. Para manter dados e permitir atualização por cima do app instalado, configurar assinatura estável de distribuição antes de habilitar atualizações.
+1. Guarde em local seguro o pacote privado da chave entregue separadamente nesta conversa.
+2. GitHub → repositório `luan-luz/AtividadeUNC3` → **Settings → Secrets and variables → Actions → New repository secret**.
+3. Crie **ONEO_KEYSTORE_B64** com o texto integral do arquivo `ONEO_KEYSTORE_B64.txt` (apenas a linha Base64).
+4. Crie **ONEO_STORE_PASSWORD** com o texto integral do arquivo `ONEO_STORE_PASSWORD.txt`.
+5. Na aba **Actions**, abra **Publicar atualização 1o**, selecione a branch `main` e clique em **Run workflow**.
+6. Confira a release publicada em `https://github.com/luan-luz/AtividadeUNC3/releases`, tag `v1.3.0`, com arquivo `1o.apk`. **Instale exclusivamente esse APK assinado.**
+7. Para futuras versões, incremente `versionCode` e `versionName` no `app/build.gradle`, faça commit na `main` e o GitHub publicará automaticamente uma nova Release com a mesma assinatura.
 
-## Gerar APK
-GitHub Actions: `Actions → Gerar APK Android`. Baixe o ZIP no artifact `1o-Android-APK` e extraia `app-debug.apk`.
+A função de atualização do próprio aplicativo somente procura Releases públicas. O ZIP da aba *Actions → Artifacts* contém APK **de depuração**, com assinatura instável, e **não deve ser usado como instalação definitiva**.
+
+### Migração de versões anteriores
+Se estiver com o APK de depuração v1.2 instalado, a assinatura definitiva não corresponderá. Antes de remover a versão antiga, abra **Desafios → Exportar cópia dos dados**, guarde o JSON em local acessível e verifique que existe; depois, se o Android recusar instalar sobre a versão anterior, desinstale o 1o antigo, instale o `1o.apk` oficial de Releases e vá em **Desafios → Restaurar uma cópia**. A desinstalação apaga os dados internos e esse backup é essencial.
+
+## Build
+- `.github/workflows/android-apk.yml`: compila apenas um APK *DEBUG de teste* para verificar o código.
+- `.github/workflows/release-1o.yml`: compila *RELEASE assinado* e publica no GitHub Releases, exigindo os segredos acima.
+
+## Segurança e limites
+O aplicativo é funcional offline, não exige conta e não sincroniza dados pessoais com o GitHub. A consulta online usa exclusivamente metadados públicos de versão e download de APK. A assinatura é privada; se a chave for perdida, futuras atualizações por cima do aplicativo instalado ficarão inviabilizadas. A automação não concede permissão para instalações silenciosas.
