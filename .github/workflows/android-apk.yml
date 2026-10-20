@@ -3,6 +3,9 @@ on:
   push:
     branches: [main, trilha-android-nativo, 'feature/desafios-1o-v1-2', 'feature/atualizacao-github-v1-3']
   workflow_dispatch:
+concurrency:
+  group: oneo-build-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -42,6 +45,19 @@ jobs:
             echo "Falha na compilação ou nos downloads. Tentativa $((attempt+1))/3 após pausa."
             sleep 35
           done
+      - name: Testar assinatura de release sem expor a chave permanente
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ONEO_STORE_PASSWORD="apenas-para-teste-ci-nunca-distribuir"
+          export ONEO_KEYSTORE_PATH="$RUNNER_TEMP/test-only.p12"
+          keytool -genkeypair -keystore "$ONEO_KEYSTORE_PATH" -storetype PKCS12 \
+            -storepass "$ONEO_STORE_PASSWORD" -keypass "$ONEO_STORE_PASSWORD" \
+            -alias oneo -keyalg RSA -keysize 2048 -validity 3 \
+            -dname "CN=1o CI Temporary" >/dev/null 2>&1
+          gradle :app:assembleRelease --no-daemon
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+          rm -f "$ONEO_KEYSTORE_PATH"
       - name: Publicar APK instalável
         uses: actions/upload-artifact@v4
         with:
