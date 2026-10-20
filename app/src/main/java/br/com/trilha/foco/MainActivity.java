@@ -87,6 +87,7 @@ public final class MainActivity extends Activity {
         }
         render();
         handler.post(tick);
+        UpdateManager.check(this,false);
     }
 
     @Override protected void onSaveInstanceState(Bundle out) {
@@ -369,6 +370,12 @@ public final class MainActivity extends Activity {
             JSONObject a=activities().optJSONObject(i); if (a!=null) activityLine(b,a);
         }
         space(b,14); action(b,"+  Nova atividade",false,()->editActivity(null));
+        space(b,28);overline(b,"Aplicativo");
+        LinearLayout updates=card();
+        updates.addView(text("Atualizações do 1o",16,WHITE,true));space(updates,6);
+        updates.addView(text("Consulte novas versões pelo GitHub. O acesso à internet é opcional e nunca bloqueia o uso do aplicativo.",12,MUTED,false));space(updates,12);
+        action(updates,"Verificar atualizações",false,()->UpdateManager.check(this,true));
+        b.addView(updates);
     }
     private void activityLine(LinearLayout b, JSONObject a) {
         LinearLayout line=card(); LinearLayout top=row();
