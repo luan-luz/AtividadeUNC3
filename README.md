@@ -1,21 +1,28 @@
-# 1o — atividades e blocos de foco
+# 1o · v1.2.0 — Atividades, desafios e aprendizagem
 
-Aplicativo Android **nativo em Java**, offline para execução das tarefas, com tela escura preta e detalhes vermelhos. Sem WebView, sem conta e sem servidor obrigatório. A identidade de pacote `br.com.trilha.foco` foi mantida por compatibilidade com os dados anteriores.
+App Android nativo em Java, interface preta/branca/vermelha e uso **100% offline**. Sem WebView, conta, servidor, telemetria ou permissão de internet.
 
-## Fluxo da sessão
-1. Selecione a atividade e um tipo; defina a duração de foco planejada entre 1 e 720 minutos.
-2. **Preparação:** contagem sem limite, incluindo pausas. Toque em "Iniciar bloco de foco" para trocar de fase.
-3. **Foco:** o cronômetro progride normalmente mesmo após atingir a meta; o excedente aparece como **tempo extra**, sem interrupção.
-4. Conclua para registrar preparação, foco real, meta e tempo extra.
-5. Opcionalmente registre uma preparação encerrada antes do foco, mantendo a tentativa na análise.
+## Funcionalidades
+- Atividades e tipos personalizados.
+- Único cronômetro com preparação ilimitada, foco planejado, pausa, retomada e excedente.
+- Histórico local de sessões, mantido intacto.
+- Desafios de 7, 14, 30, 60 e 90 dias, vinculados a atividade e tipo.
+- Metas diárias de 1 a 720 minutos, com mudanças para dias específicos; 0 indica descanso.
+- Percentual de dias cumpridos, sequência atual e melhor sequência, tempo total de foco, preparação e excedente.
+- Desafios de aprendizagem: compreensão escrita, ideias principais, explicação livre e dúvidas.
+- Questões de recuperação ativa com resposta sem consulta e avaliação manual de 0 a 2.
+- Reagendamento de revisão por intervalos crescentes (1, 3, 7, 14 e 30 dias); falhas voltam ao intervalo curto.
+- Cópias locais em JSON via seletor nativo de arquivos: exportação e restauração.
 
-## Dados e histórico
-Os dados permanecem em `SharedPreferences` + JSON local. O histórico inclui tempos, IDs de atividade e tipo, momento de abertura/início do foco/encerramento e status. Sessões antigas continuam legíveis sem criar metas ou preparação inexistentes. O resumo apresenta tempo total de foco, preparação, extra, média de preparação, proporção de metas alcançadas e preparações encerradas antes do foco.
+## Regras dos indicadores
+A soma de foco dos blocos vinculados ao desafio e encerrados em um mesmo dia civil é comparada à meta daquele dia. Tempo extra já pertence ao foco e não é somado duas vezes. Dias de descanso são excluídos do denominador. Sessões avulsas não entram automaticamente em desafios. Uma sessão pertence a no máximo um desafio.
 
-Uma preparação longa não prova procrastinação; a relação com resultados, contexto, tipo de tarefa e número de observações precisa ser analisada antes de extrair conclusões.
+Autoavaliação de recordação não é uma prova objetiva de retenção; os indicadores refletem o desempenho que o usuário registrou. Tempos de preparação longos não significam necessariamente procrastinação.
 
-## Compilação
-O GitHub Actions da `main` executa o workflow `.github/workflows/android-apk.yml` e publica o APK de depuração nos **Artifacts**. Em caso de HTTP 429 temporário dos repositórios Maven, tenta a compilação novamente.
+## Segurança dos dados
+O banco local atual permanece no `SharedPreferences` com JSON e migração aditiva. Alterações são versionadas por `dataVersion`, mantendo sessões anteriores. Ao migrar para SQLite/Room, exigir backup e testes de preservação. A restauração substitui todos os registros do dispositivo e exige confirmação.
 
-## Atualizações e preservação
-A atualização direta do aplicativo por GitHub Releases **ainda não foi implementada**. APKs de depuração de execuções diferentes podem ter assinaturas diferentes e não se instalar sobre o app atual. Antes de ativar atualização in-app é necessário configurar assinatura de produção estável. Por enquanto, evitar desinstalar a versão instalada sem ter cópia de segurança dos dados; o aplicativo ainda não possui exportação/backup.
+**Atualizações automáticas via GitHub Releases ainda não estão implementadas.** O APK atual é de depuração; cada runner pode usar certificado diferente. Para manter dados e permitir atualização por cima do app instalado, configurar assinatura estável de distribuição antes de habilitar atualizações.
+
+## Gerar APK
+GitHub Actions: `Actions → Gerar APK Android`. Baixe o ZIP no artifact `1o-Android-APK` e extraia `app-debug.apk`.
