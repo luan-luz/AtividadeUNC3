@@ -29,8 +29,15 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
+import android.content.Intent;
+import android.net.Uri;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.ByteArrayOutputStream;
 
-/** 1o v1.1: aplicativo Android nativo offline; preparação, foco planejado e excedente. */
+/** 1o v1.2: aplicativo Android nativo offline; preparação, foco planejado e excedente. */
 public final class MainActivity extends Activity {
     private static final int INK = Color.WHITE;
     private static final int MUTED = Color.rgb(166, 166, 173);
@@ -45,6 +52,9 @@ public final class MainActivity extends Activity {
     private JSONObject data;
     private String page = "home";
     private String selectedActivity = "";
+    private String selectedChallenge = "";
+    private String pendingLearningSession = "";
+    private static final int BACKUP_EXPORT = 71, BACKUP_IMPORT = 72;
     private TextView clockView;
     private TextView clockStatus;
     private TextView clockSecondary;
@@ -72,6 +82,8 @@ public final class MainActivity extends Activity {
         if (saved != null) {
             page = saved.getString("page", "home");
             selectedActivity = saved.getString("activity", "");
+            selectedChallenge = saved.getString("challenge", "");
+            pendingLearningSession = saved.getString("learningSession", "");
         }
         render();
         handler.post(tick);
@@ -80,6 +92,8 @@ public final class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle out) {
         out.putString("page", page);
         out.putString("activity", selectedActivity);
+        out.putString("challenge", selectedChallenge);
+        out.putString("learningSession", pendingLearningSession);
         super.onSaveInstanceState(out);
     }
 
@@ -90,6 +104,7 @@ public final class MainActivity extends Activity {
 
     @Override public void onBackPressed() {
         if ("timer".equals(page) || "detail".equals(page)) navigate("activities");
+        else if ("challengeDetail".equals(page) || "reviews".equals(page) || "learningCapture".equals(page)) navigate("challenges");
         else if (!"home".equals(page)) navigate("home");
         else super.onBackPressed();
     }
@@ -106,6 +121,7 @@ public final class MainActivity extends Activity {
             set(data, "activities", a);
         }
         if (data.optJSONArray("sessions") == null) set(data, "sessions", new JSONArray());
+        ChallengeData.migrate(data);
         JSONObject oldTimer = data.optJSONObject("timer");
         if (oldTimer != null && !oldTimer.has("phase")) {
             // Migração: sessão anterior já era foco sem tempo planejado.
@@ -127,6 +143,11 @@ public final class MainActivity extends Activity {
     }
     private JSONArray activities() { return data.optJSONArray("activities"); }
     private JSONArray sessions() { return data.optJSONArray("sessions"); }
+    private JSONArray challenges() { return ChallengeData.array(data, "challenges"); }
+    private JSONArray entries() { return ChallengeData.array(data, "learningEntries"); }
+    private JSONArray recalls() { return ChallengeData.array(data, "recallItems"); }
+    private JSONArray attempts() { return ChallengeData.array(data, "recallAttempts"); }
+    private JSONObject currentChallenge() {return ChallengeData.find(challenges(),selectedChallenge);}
     private JSONObject find(JSONArray arr, String id) {
         if (arr == null) return null;
         for (int i = 0; i < arr.length(); i++) {
@@ -237,6 +258,10 @@ public final class MainActivity extends Activity {
             case "detail": renderDetail(body); break;
             case "timer": renderTimer(body); break;
             case "history": renderHistory(body); break;
+            case "challenges": renderChallenges(body); break;
+            case "challengeDetail": renderChallengeDetail(body); break;
+            case "reviews": renderReviews(body); break;
+            case "learningCapture": renderLearningCapture(body); break;
             default: renderHome(body); break;
         }
         if (!"timer".equals(page)) shell.addView(nav(), params(-1, 71));
@@ -244,11 +269,11 @@ public final class MainActivity extends Activity {
     }
     private LinearLayout nav() {
         LinearLayout nav = row();nav.setPadding(dp(8),dp(5),dp(8),dp(5));
-        nav.setBackgroundColor(SURFACE);nav.setGravity(Gravity.CENTER);nav.setWeightSum(3f);
-        String[] ids = {"home", "activities", "history"};
-        String[] labels = {"Início", "Atividades", "Histórico"};
-        String[] icons = {"⌂", "☷", "◷"};
-        for (int i=0; i<3; i++) {
+        nav.setBackgroundColor(SURFACE);nav.setGravity(Gravity.CENTER);nav.setWeightSum(4f);
+        String[] ids = {"home", "activities", "challenges", "history"};
+        String[] labels = {"Início", "Atividades", "Desafios", "Histórico"};
+        String[] icons = {"⌂", "☷", "◇", "◷"};
+        for (int i=0; i<ids.length; i++) {
             final String dest=ids[i];
             LinearLayout item=column(); item.setGravity(Gravity.CENTER);
             TextView ic=text(icons[i], 25, page.equals(dest)||("detail".equals(page)&&"activities".equals(dest))?ACCENT:MUTED, true);
@@ -332,7 +357,12 @@ public final class MainActivity extends Activity {
         } else {
             action(start,"Escolher atividade  →",true,()->navigate("activities"));
         }
-        b.addView(start,params(-1,-2)); space(b,24);
+        b.addView(start,params(-1,-2)); space(b,14);
+        int due=ChallengeData.dueCount(recalls(),null);
+        LinearLayout quick=card();quick.addView(text("DESAFIOS",11,ACCENT,true));space(quick,8);
+        quick.addView(text(challenges().length()+" desafio(s) · "+due+" revisão(ões) para hoje",14,WHITE,false));space(quick,12);
+        action(quick,"Abrir desafios",false,()->navigate("challenges"));
+        b.addView(quick,params(-1,-2));space(b,24);
         overline(b,"Suas atividades");
         if (activities().length()==0) b.addView(text("Nenhuma atividade cadastrada.",14,MUTED,false));
         for (int i=0;i<Math.min(activities().length(),4);i++) {
@@ -408,6 +438,10 @@ public final class MainActivity extends Activity {
         clockSecondary=text(timerDetails(t),13,MUTED,false);
         clockSecondary.setGravity(Gravity.CENTER);clockPanel.addView(clockSecondary);
         b.addView(clockPanel,params(-1,-2));space(b,22);
+        if(!t.optString("challengeId","").isEmpty()) {
+            JSONObject ch=ChallengeData.find(challenges(),t.optString("challengeId"));
+            if(ch!=null){b.addView(text("DESAFIO · "+ch.optString("name"),12,ACCENT,true));space(b,12);}
+        }
         if(preparing) {
             action(b,"Iniciar bloco de foco  →",true,()->beginFocus());space(b,10);
             action(b,t.optBoolean("paused",false)?"Retomar preparação":"Pausar preparação",false,()->toggleTimer());
@@ -455,7 +489,10 @@ public final class MainActivity extends Activity {
             JSONObject s=sessions().optJSONObject(i);if(s==null)continue;
             LinearLayout c=card();
             c.addView(text(s.optString("activityName"),17,INK,true));space(c,4);
-            c.addView(text(s.optString("typeName"),13,MUTED,false));space(c,12);
+            c.addView(text(s.optString("typeName"),13,MUTED,false));space(c,8);
+            JSONObject ch=ChallengeData.find(challenges(),s.optString("challengeId"));
+            if(ch!=null){c.addView(text("Desafio: "+ch.optString("name"),12,ACCENT,true));space(c,8);} 
+            space(c,4);
             if(s.has("prepMillis")) {
                 c.addView(text("Preparação: "+human(s.optLong("prepMillis",0L)),13,MUTED,false));space(c,6);
                 c.addView(text("Foco: "+human(s.optLong("focusMillis",0L))+" / Planejado: "+human(s.optLong("plannedMillis",0L)),13,INK,false));space(c,6);
@@ -471,6 +508,348 @@ public final class MainActivity extends Activity {
             b.addView(c,params(-1,-2));space(b,11);
         }
     }
+
+    // DESAFIOS: as sessões existentes são a única fonte para tempos e constância.
+    private void renderChallenges(LinearLayout b) {
+        overline(b,"Módulo de desafios");
+        section(b,"Desafios","Metas diárias de 7 a 90 dias. Execução e aprendizagem sem conexão.");
+        action(b,"+  Criar desafio",true,()->chooseChallengeType());space(b,15);
+        int due=ChallengeData.dueCount(recalls(),null);
+        LinearLayout rev=card();
+        rev.addView(text("Revisões programadas",16,WHITE,true));space(rev,7);
+        rev.addView(text(due+" revisão(ões) previstas ou atrasadas",13,MUTED,false));space(rev,12);
+        action(rev,"Abrir fila de revisões",false,()->{selectedChallenge="";navigate("reviews");});
+        b.addView(rev);space(b,15);
+        if(challenges().length()==0) {
+            b.addView(text("Nenhum desafio criado. Use uma atividade existente e estabeleça sua meta.",14,MUTED,false));
+        }
+        for(int i=challenges().length()-1;i>=0;i--) {
+            JSONObject c=challenges().optJSONObject(i);if(c==null)continue;
+            JSONObject m=ChallengeData.stats(c,sessions());
+            LinearLayout tile=card();
+            tile.addView(text(c.optString("name"),18,WHITE,true));space(tile,6);
+            tile.addView(text(("learning".equals(c.optString("mode"))?"Aprendizagem":"Execução")+" · "+c.optInt("days")+" dias · "+c.optString("typeName"),12,MUTED,false));space(tile,10);
+            tile.addView(text(m.optInt("completed")+" / "+m.optInt("eligible")+" dias cumpridos até hoje",14,WHITE,true));space(tile,7);
+            tile.addView(text("Constância: "+m.optInt("percentage")+"% · sequência: "+m.optInt("streak"),12,MUTED,false));space(tile,12);
+            action(tile,"Abrir desafio  →",false,()->{selectedChallenge=c.optString("id");navigate("challengeDetail");});
+            b.addView(tile);space(b,12);
+        }
+        space(b,12);
+        action(b,"Exportar cópia dos dados (JSON)",false,()->exportBackup());
+        space(b,10);
+        action(b,"Restaurar uma cópia de segurança",false,()->importBackup());
+    }
+
+    private EditText field(String hint,String initial,boolean multiline) {
+        EditText f=new EditText(this);f.setTextColor(WHITE);f.setHintTextColor(MUTED);f.setTextSize(15);
+        f.setHint(hint);f.setText(initial);
+        f.setSingleLine(!multiline);
+        if(multiline){f.setMinLines(2);f.setMaxLines(5);f.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);}
+        else f.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        f.setPadding(dp(12),dp(12),dp(12),dp(12));
+        f.setBackground(shape(SOFT,10,LINE));
+        return f;
+    }
+    private EditText numberField(String hint,String initial) {
+        EditText f=field(hint,initial,false);f.setInputType(InputType.TYPE_CLASS_NUMBER);return f;
+    }
+    private LinearLayout dialogFields(EditText... fields) {
+        LinearLayout box=column();box.setPadding(dp(18),dp(8),dp(18),dp(5));
+        for(EditText f:fields){box.addView(f,params(-1,-2));space(box,12);}return box;
+    }
+    private int parseMinutes(EditText f,int min,int max) {
+        try {int n=Integer.parseInt(f.getText().toString().trim());if(n>=min&&n<=max)return n;}
+        catch(Exception ignored){}
+        f.setError("Informe valor entre "+min+" e "+max+".");return -1;
+    }
+    private void chooseChallengeType() {
+        new AlertDialog.Builder(this).setTitle("Tipo de desafio")
+            .setItems(new String[]{"Execução · constância e tempo","Aprendizagem · compreensão e revisões"},
+                (d,which)->chooseChallengeActivity(which==1?"learning":"execution"))
+            .setNegativeButton("Cancelar",null).show();
+    }
+    private void chooseChallengeActivity(String mode) {
+        ArrayList<JSONObject> acts=new ArrayList<>();
+        ArrayList<JSONObject> types=new ArrayList<>();
+        ArrayList<String> names=new ArrayList<>();
+        for(int i=0;i<activities().length();i++) {
+            JSONObject a=activities().optJSONObject(i);if(a==null)continue;
+            JSONArray ts=a.optJSONArray("types");
+            if(ts==null)continue;
+            for(int j=0;j<ts.length();j++){
+                JSONObject t=ts.optJSONObject(j);if(t==null)continue;
+                acts.add(a);types.add(t);names.add(a.optString("name")+" / "+t.optString("name"));
+            }
+        }
+        if(names.isEmpty()){notice("Cadastre uma atividade e um tipo primeiro.");navigate("activities");return;}
+        new AlertDialog.Builder(this).setTitle("Vincular atividade existente")
+            .setItems(names.toArray(new String[0]),(d,i)->chooseChallengeDuration(mode,acts.get(i),types.get(i)))
+            .setNegativeButton("Cancelar",null).show();
+    }
+    private void chooseChallengeDuration(String mode,JSONObject act,JSONObject type) {
+        String[] durations={"7 dias","14 dias","30 dias","60 dias","90 dias"};
+        new AlertDialog.Builder(this).setTitle("Duração do desafio")
+            .setItems(durations,(d,i)->challengeForm(mode,act,type,ChallengeData.PERIODS[i]))
+            .setNegativeButton("Cancelar",null).show();
+    }
+    private void challengeForm(String mode,JSONObject act,JSONObject type,int days) {
+        EditText name=field("Nome do desafio",type.optString("name")+" · "+days+" dias",false);
+        EditText minutes=numberField("Meta diária em minutos","learning".equals(mode)?"40":"20");
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Novo desafio · "+days+" dias")
+            .setView(dialogFields(name,minutes)).setNegativeButton("Cancelar",null)
+            .setPositiveButton("Criar desafio",null).create();
+        dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            String title=clean(name.getText().toString());
+            if(title.length()<2||title.length()>60){name.setError("Use de 2 a 60 caracteres.");return;}
+            int amount=parseMinutes(minutes,1,720);if(amount<0)return;
+            JSONObject c=ChallengeData.newChallenge(title,mode,act,type,days,amount);
+            challenges().put(c);save();dialog.dismiss();selectedChallenge=c.optString("id");navigate("challengeDetail");
+        }));
+        dialog.show();
+    }
+    private void renderChallengeDetail(LinearLayout b) {
+        JSONObject c=currentChallenge();
+        if(c==null){navigate("challenges");return;}
+        JSONObject stats=ChallengeData.stats(c,sessions());
+        String today=ChallengeData.today();int idx=ChallengeData.indexOfDate(c,today);
+        boolean active=idx>=0;
+        overline(b,"Desafio · "+("learning".equals(c.optString("mode"))?"aprendizagem":"execução"));
+        section(b,c.optString("name"),c.optString("activityName")+" / "+c.optString("typeName"));
+        LinearLayout panel=card();
+        panel.addView(text("CONSTÂNCIA",11,ACCENT,true));space(panel,7);
+        panel.addView(text(stats.optInt("completed")+" / "+stats.optInt("eligible")+" dias",28,WHITE,true));space(panel,5);
+        panel.addView(text("Cumprimento: "+stats.optInt("percentage")+"% · sequência: "+stats.optInt("streak")+" · melhor: "+stats.optInt("bestStreak"),12,MUTED,false));space(panel,9);
+        panel.addView(text("Foco acumulado: "+human(ChallengeData.metric(sessions(),c.optString("id"),"focus")),13,WHITE,false));space(panel,6);
+        panel.addView(text("Preparação: "+human(ChallengeData.metric(sessions(),c.optString("id"),"prepMillis")),13,MUTED,false));space(panel,6);
+        panel.addView(text("Excedente das sessões: "+human(ChallengeData.metric(sessions(),c.optString("id"),"extraMillis")),13,MUTED,false));
+        b.addView(panel);space(b,15);
+        LinearLayout daily=card();
+        daily.addView(text(active?"DIA "+(idx+1)+" DE "+c.optInt("days"):"PERÍODO DO DESAFIO",12,ACCENT,true));space(daily,7);
+        if(active){
+            int goal=ChallengeData.goal(c,today);
+            long done=ChallengeData.focusOn(sessions(),c.optString("id"),today);
+            daily.addView(text(goal==0?"Dia de descanso":"Hoje: "+human(done)+" / "+goal+" min",16,WHITE,true));
+            space(daily,8);
+            if(goal>0){
+                action(daily,"▶  Iniciar sessão do desafio",true,()->startChallenge(c));
+            } else daily.addView(text("Meta definida como descanso para hoje.",13,MUTED,false));
+            space(daily,10);
+        } else daily.addView(text("Início: "+ChallengeData.dateLabel(c.optString("startDate"))+" · duração: "+c.optInt("days")+" dias",13,MUTED,false));
+        action(daily,"Personalizar meta de um dia",false,()->chooseDayGoal(c));
+        space(daily,10);action(daily,"Alterar meta diária padrão",false,()->changeDefaultGoal(c));
+        b.addView(daily);space(b,14);
+        if("learning".equals(c.optString("mode"))) {
+            LinearLayout learning=card();
+            learning.addView(text("APRENDIZAGEM",11,ACCENT,true));space(learning,9);
+            int[] scores=ChallengeData.recallStats(attempts(),c.optString("id"));
+            learning.addView(text("Recuperações: "+scores[0]+" · respostas completas: "+scores[1],13,WHITE,false));space(learning,6);
+            learning.addView(text("Revisões previstas: "+ChallengeData.dueCount(recalls(),c.optString("id")),13,MUTED,false));space(learning,13);
+            action(learning,"Registrar compreensão",false,()->{pendingLearningSession="";navigate("learningCapture");});space(learning,9);
+            action(learning,"+  Cadastrar questão de recuperação",false,()->addRecall(c));space(learning,9);
+            action(learning,"Abrir revisões espaçadas",false,()->navigate("reviews"));
+            b.addView(learning);space(b,14);
+            renderRecentEntries(b,c.optString("id"));
+        }
+        overline(b,"Últimos dias");
+        int until=Math.min(c.optInt("days")-1,Math.max(0,idx));
+        for(int i=until;i>=Math.max(0,until-6);i--){
+            String iso=ChallengeData.shift(c.optString("startDate"),i);
+            if(iso.compareTo(today)>0)continue;
+            int goal=ChallengeData.goal(c,iso);
+            long focus=ChallengeData.focusOn(sessions(),c.optString("id"),iso);
+            LinearLayout line=card();
+            line.addView(text(ChallengeData.dateLabel(iso)+" · "+(goal==0?"Descanso":human(focus)+" / "+goal+" min"),13,WHITE,true));
+            space(line,5);
+            line.addView(text(goal==0?"Sem meta":focus>=goal*60000L?"Meta cumprida":"Meta ainda não cumprida",12,goal>0&&focus>=goal*60000L?ACCENT:MUTED,false));
+            b.addView(line);space(b,8);
+        }
+        space(b,12);action(b,"←  Todos os desafios",false,()->navigate("challenges"));
+    }
+    private void startChallenge(JSONObject c) {
+        if(data.optJSONObject("timer")!=null){notice("Conclua ou descarte a sessão atual primeiro.");navigate("timer");return;}
+        JSONObject a=ChallengeData.find(activities(),c.optString("activityId"));
+        JSONObject t=a==null?null:ChallengeData.find(a.optJSONArray("types"),c.optString("typeId"));
+        if(a==null||t==null){notice("A atividade ou tipo vinculado foi excluído.");return;}
+        int goal=ChallengeData.goal(c,ChallengeData.today());
+        if(goal<1){notice("Hoje está marcado como descanso.");return;}
+        beginPreparation(a,t,goal);
+        JSONObject timer=data.optJSONObject("timer");
+        if(timer!=null){set(timer,"challengeId",c.optString("id"));save();}
+    }
+    private void chooseDayGoal(JSONObject c) {
+        int days=c.optInt("days");String[] labels=new String[days];
+        for(int i=0;i<days;i++) {
+            String iso=ChallengeData.shift(c.optString("startDate"),i);
+            labels[i]="Dia "+(i+1)+" · "+ChallengeData.dateLabel(iso)+" · "+ChallengeData.goal(c,iso)+" min";
+        }
+        new AlertDialog.Builder(this).setTitle("Selecionar dia")
+            .setItems(labels,(d,i)->editDayGoal(c,ChallengeData.shift(c.optString("startDate"),i)))
+            .setNegativeButton("Cancelar",null).show();
+    }
+    private void editDayGoal(JSONObject c,String iso) {
+        EditText f=numberField("Minutos (0 = descanso)",String.valueOf(ChallengeData.goal(c,iso)));
+        AlertDialog d=new AlertDialog.Builder(this).setTitle("Meta · "+ChallengeData.dateLabel(iso))
+            .setMessage("Informe 0 para marcar um dia de descanso.")
+            .setView(dialogFields(f)).setNegativeButton("Cancelar",null).setPositiveButton("Salvar",null).create();
+        d.setOnShowListener(x->d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            int n=parseMinutes(f,0,720);if(n<0)return;
+            JSONObject overrides=c.optJSONObject("dateGoals");
+            if(overrides==null){overrides=new JSONObject();set(c,"dateGoals",overrides);}
+            set(overrides,iso,n);save();d.dismiss();render();
+        }));
+        d.show();
+    }
+    private void changeDefaultGoal(JSONObject c) {
+        EditText f=numberField("Minutos diários",String.valueOf(c.optInt("goalMinutes",40)));
+        AlertDialog d=new AlertDialog.Builder(this).setTitle("Meta diária padrão")
+            .setView(dialogFields(f)).setPositiveButton("Salvar",null)
+            .setNegativeButton("Cancelar",null).create();
+        d.setOnShowListener(x->d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            int n=parseMinutes(f,1,720);if(n<0)return;
+            set(c,"goalMinutes",n);save();d.dismiss();render();
+        }));
+        d.show();
+    }
+    private void renderRecentEntries(LinearLayout b,String challengeId) {
+        overline(b,"Registros de compreensão");int shown=0;
+        for(int i=entries().length()-1;i>=0&&shown<5;i--) {
+            JSONObject entry=entries().optJSONObject(i);
+            if(entry==null||!challengeId.equals(entry.optString("challengeId")))continue;
+            shown++;LinearLayout tile=card();
+            tile.addView(text(entry.optString("topic"),15,WHITE,true));space(tile,8);
+            tile.addView(text(entry.optString("explanation"),13,MUTED,false));space(tile,5);
+            tile.addView(text(ChallengeData.dateLabel(ChallengeData.date(entry.optLong("createdAt"))),11,ACCENT,false));
+            b.addView(tile);space(b,8);
+        }
+        if(shown==0)b.addView(text("Nenhum registro de compreensão até agora.",13,MUTED,false));
+        space(b,14);
+    }
+    private void renderLearningCapture(LinearLayout b) {
+        JSONObject c=currentChallenge();
+        if(c==null){navigate("challenges");return;}
+        overline(b,"Registro autoral");
+        section(b,"Compreensão","Escreva sem consultar o material. Registrar não equivale a comprovar retenção.");
+        EditText topic=field("Tema ou trecho estudado","",false);
+        EditText ideas=field("Ideias principais lembradas","",true);
+        EditText explain=field("Explique com suas palavras, sem consultar","",true);
+        EditText doubts=field("Dúvidas ou erros identificados","",true);
+        LinearLayout panel=card();
+        for(EditText f:new EditText[]{topic,ideas,explain,doubts}){panel.addView(f,params(-1,-2));space(panel,12);}
+        b.addView(panel);space(b,13);
+        action(b,"Salvar registro",true,()->{
+            String title=clean(topic.getText().toString());
+            String content=clean(explain.getText().toString());
+            if(title.length()<2){topic.setError("Informe o tema.");return;}
+            if(content.length()<10){explain.setError("Explique em pelo menos 10 caracteres.");return;}
+            entries().put(ChallengeData.newEntry(c.optString("id"),pendingLearningSession,title,
+                ideas.getText().toString().trim(),content,doubts.getText().toString().trim(),0));
+            pendingLearningSession="";save();navigate("challengeDetail");notice("Compreensão registrada.");
+        });space(b,12);
+        action(b,"Agora não",false,()->{pendingLearningSession="";navigate("challengeDetail");});
+    }
+    private void addRecall(JSONObject c) {
+        EditText question=field("Pergunta de recuperação", "",true);
+        EditText reference=field("Resposta de referência (opcional)","",true);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Nova questão")
+            .setView(dialogFields(question,reference)).setNegativeButton("Cancelar",null)
+            .setPositiveButton("Criar",null).create();
+        dialog.setOnShowListener(x->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            String q=clean(question.getText().toString());
+            if(q.length()<8){question.setError("Digite uma pergunta específica.");return;}
+            recalls().put(ChallengeData.newRecall(c.optString("id"),q,reference.getText().toString().trim()));
+            save();dialog.dismiss();notice("Revisão agendada para amanhã.");render();
+        }));
+        dialog.show();
+    }
+    private void renderReviews(LinearLayout b) {
+        overline(b,"Revisão espaçada");
+        section(b,"Recuperação ativa","Responda de memória antes de conferir o material.");
+        String id=selectedChallenge;
+        int due=ChallengeData.dueCount(recalls(),id.isEmpty()?null:id);
+        b.addView(text(due+" item(ns) previstos ou atrasados",16,ACCENT,true));space(b,16);
+        int shown=0;String today=ChallengeData.today();
+        for(int i=0;i<recalls().length();i++){
+            JSONObject r=recalls().optJSONObject(i);
+            if(r==null||(!id.isEmpty()&&!id.equals(r.optString("challengeId"))))continue;
+            boolean scheduled=r.optString("dueDate","9999-12-31").compareTo(today)<=0;
+            LinearLayout tile=card();
+            tile.addView(text(r.optString("question"),15,WHITE,true));space(tile,7);
+            tile.addView(text((scheduled?"Pendente":"Próxima")+" · "+ChallengeData.dateLabel(r.optString("dueDate")),12,scheduled?ACCENT:MUTED,false));space(tile,11);
+            action(tile,scheduled?"Responder sem consultar":"Revisar antecipadamente",scheduled,()->reviewItem(r));
+            b.addView(tile);space(b,11);shown++;
+        }
+        if(shown==0)b.addView(text("Nenhuma questão cadastrada ainda.",13,MUTED,false));
+        space(b,12);
+        action(b,"←  Voltar",false,()->navigate(id.isEmpty()?"challenges":"challengeDetail"));
+    }
+    private void reviewItem(JSONObject item) {
+        EditText answer=field("Escreva tudo que lembra, sem consultar","",true);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(item.optString("question"))
+            .setView(dialogFields(answer)).setNegativeButton("Cancelar",null)
+            .setPositiveButton("Conferir resposta",null).create();
+        dialog.setOnShowListener(x->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            String written=answer.getText().toString().trim();
+            if(written.length()<2){answer.setError("Responda antes de conferir.");return;}
+            dialog.dismiss();
+            String reference=item.optString("expected","");
+            String comparison="Sua resposta:\n"+written+"\n\n";
+            comparison+=reference.isEmpty()?"Confira o material original antes de avaliar.":"Referência:\n"+reference;
+            new AlertDialog.Builder(this).setTitle("Avalie a recuperação")
+                .setMessage(comparison)
+                .setItems(new String[]{"0 · Não recordei","1 · Recordei parcialmente","2 · Recordei corretamente"},
+                    (d,which)->{
+                        ChallengeData.recordRecall(data,item,written,which);save();render();
+                        notice("Avaliação salva. Próxima revisão agendada.");
+                    }).setNegativeButton("Não avaliar",null).show();
+        }));
+        dialog.show();
+    }
+    private void exportBackup() {
+        Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/json");
+        i.putExtra(Intent.EXTRA_TITLE,"1o-backup-"+ChallengeData.today()+".json");
+        startActivityForResult(i,BACKUP_EXPORT);
+    }
+    private void importBackup() {
+        new AlertDialog.Builder(this).setTitle("Restaurar dados?")
+            .setMessage("A restauração substituirá os registros deste aparelho. Exporte uma cópia antes de continuar.")
+            .setPositiveButton("Escolher arquivo",(d,w)->{
+                Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");
+                startActivityForResult(i,BACKUP_IMPORT);
+            }).setNegativeButton("Cancelar",null).show();
+    }
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent result) {
+        super.onActivityResult(requestCode,resultCode,result);
+        if(resultCode!=RESULT_OK||result==null||result.getData()==null)return;
+        Uri uri=result.getData();
+        try {
+            if(requestCode==BACKUP_EXPORT) {
+                try(OutputStream out=getContentResolver().openOutputStream(uri)) {
+                    if(out==null)throw new IllegalStateException("Sem acesso ao arquivo");
+                    out.write(data.toString(2).getBytes(StandardCharsets.UTF_8));out.flush();
+                }
+                notice("Cópia exportada.");
+            } else if(requestCode==BACKUP_IMPORT) {
+                ByteArrayOutputStream mem=new ByteArrayOutputStream();
+                try(InputStream in=getContentResolver().openInputStream(uri)) {
+                    if(in==null)throw new IllegalStateException("Sem leitura");
+                    byte[] buffer=new byte[8192];int n;
+                    while((n=in.read(buffer))!=-1) {
+                        if(mem.size()+n>8*1024*1024)throw new IllegalStateException("Arquivo excede 8 MB");
+                        mem.write(buffer,0,n);
+                    }
+                }
+                JSONObject restored=new JSONObject(new String(mem.toByteArray(),StandardCharsets.UTF_8));
+                if(restored.optJSONArray("activities")==null||restored.optJSONArray("sessions")==null)
+                    throw new IllegalArgumentException("Não é um backup compatível");
+                ChallengeData.migrate(restored);
+                data=restored;save();selectedChallenge="";pendingLearningSession="";navigate("challenges");
+                notice("Dados restaurados.");
+            }
+        } catch(Exception e) {notice("Falha ao acessar backup: "+e.getMessage());}
+    }
+
     private void editActivity(JSONObject existing) {
         boolean isEdit=existing!=null;
         prompt(isEdit?"Renomear atividade":"Cadastrar atividade",
@@ -606,7 +985,13 @@ public final class MainActivity extends Activity {
         set(s,"createdAt",t.optLong("createdAt",0L));
         set(s,"focusStartedAt",t.optLong("focusStartedAt",0L));
         set(s,"millis",focus);set(s,"finishedAt",System.currentTimeMillis());
-        sessions().put(s);data.remove("timer");save();navigate("history");
+        String challengeId=t.optString("challengeId","");
+        if(!challengeId.isEmpty())set(s,"challengeId",challengeId);
+        sessions().put(s);data.remove("timer");save();
+        JSONObject challenge=ChallengeData.find(challenges(),challengeId);
+        if(completed && challenge!=null && "learning".equals(challenge.optString("mode"))){
+            selectedChallenge=challengeId;pendingLearningSession=s.optString("id");navigate("learningCapture");
+        }else navigate("history");
         notice("Registro salvo no histórico.");
     }
     private void confirmDiscard() {
