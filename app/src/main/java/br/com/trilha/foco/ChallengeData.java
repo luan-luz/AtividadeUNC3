@@ -123,7 +123,9 @@ final class ChallengeData {
             else run=0;
         }
         // A sequência não é perdida por um dia ainda em andamento.
-        for(int i=Math.min(c.optInt("days",0)-1,Math.max(0,indexOfDate(c,today())));i>=0;i--) {
+        int until=indexOfDate(c,today());
+        if(until<0 && today.compareTo(start)>0) until=c.optInt("days",0)-1;
+        for(int i=until;i>=0;i--) {
             String iso=shift(start,i);
             if(iso.compareTo(today)>0)continue;
             int target=goal(c,iso);
