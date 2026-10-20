@@ -90,6 +90,11 @@ public final class MainActivity extends Activity {
         UpdateManager.check(this,false);
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        UpdateManager.onResume(this);
+    }
+
     @Override protected void onSaveInstanceState(Bundle out) {
         out.putString("page", page);
         out.putString("activity", selectedActivity);
