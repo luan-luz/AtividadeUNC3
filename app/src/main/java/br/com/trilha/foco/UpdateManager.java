@@ -195,11 +195,22 @@ final class UpdateManager {
         return info.versionCode;
     }
 
+    /** Retoma a instalação depois de conceder a permissão no Android, sem baixar novamente. */
+    static void onResume(Activity activity) {
+        SharedPreferences prefs=activity.getSharedPreferences(PREFS,Activity.MODE_PRIVATE);
+        if(prefs.getBoolean("awaitingInstallPermission",false)
+            && (Build.VERSION.SDK_INT<26 || activity.getPackageManager().canRequestPackageInstalls())) {
+            prefs.edit().putBoolean("awaitingInstallPermission",false).apply();
+            if(new File(activity.getCacheDir(),"pending-1o.apk").isFile())requestInstall(activity);
+        }
+    }
+
     private static void requestInstall(Activity activity) {
         if(activity.isFinishing()||activity.isDestroyed())return;
         if(Build.VERSION.SDK_INT>=26 && !activity.getPackageManager().canRequestPackageInstalls()) {
+            activity.getSharedPreferences(PREFS,Activity.MODE_PRIVATE).edit().putBoolean("awaitingInstallPermission",true).apply();
             new AlertDialog.Builder(activity).setTitle("Permitir atualização")
-                .setMessage("Autorize a instalação a partir do 1o nas configurações do Android. Depois volte e toque em Verificar atualizações novamente.")
+                .setMessage("Autorize a instalação a partir do 1o nas configurações do Android. Depois volte ao aplicativo para concluir a instalação já baixada.")
                 .setNegativeButton("Cancelar",null)
                 .setPositiveButton("Abrir configurações",(d,w)->{
                     try {
