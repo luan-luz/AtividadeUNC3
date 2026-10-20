@@ -1,7 +1,7 @@
 name: Gerar APK Android
 on:
   push:
-    branches: [main, trilha-android-nativo]
+    branches: [main, trilha-android-nativo, 'feature/desafios-1o-v1-2']
   workflow_dispatch:
 jobs:
   apk:
